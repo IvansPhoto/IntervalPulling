@@ -1,0 +1,88 @@
+﻿@page "/fetchdata"
+@using IntervalPulling.BlazorClient.Services
+@using IntervalPulling.Entities
+@inject IDataService DataService
+@implements IDisposable
+
+<PageTitle>Weather forecast</PageTitle>
+
+<h1>Weather forecast</h1>
+<button @onclick="FetchWeatherForecasts">Fetch data</button>
+<p>This component demonstrates fetching data from the server.</p>
+
+@switch (_result.State)
+{
+    case Services.DataService.Result.States.None:
+        <p>
+            <em>Ready to load data.</em>
+        </p>
+        break;
+    case Services.DataService.Result.States.Accepted:
+        <p>
+            <em>Starting...</em>
+        </p>
+        break;
+    case Services.DataService.Result.States.InProgress:
+        <p>
+            <em>Loading...</em>
+        </p>
+        break;
+    case Services.DataService.Result.States.Finished:
+        <p>
+            <em>Finished.</em>
+        </p>
+        break;
+    case Services.DataService.Result.States.Error:
+        <p>
+            <em>Error.</em>
+        </p>
+        break;
+    default:
+        throw new ArgumentOutOfRangeException();
+}
+
+@if (_result.State is Services.DataService.Result.States.Finished)
+{
+    <table class="table">
+        <thead>
+        <tr>
+            <th>Date</th>
+            <th>Temp. (C)</th>
+            <th>Temp. (F)</th>
+            <th>Summary</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var forecast in _result.WeatherForecasts)
+        {
+            <tr>
+                <td>@forecast.Date.ToShortDateString()</td>
+                <td>@forecast.TemperatureC</td>
+                <td>@forecast.TemperatureF</td>
+                <td>@forecast.Summary</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private readonly CancellationTokenSource _cancellationTokenSource = new();
+    private DataService.Result _result = new(Services.DataService.Result.States.None, Array.Empty<WeatherForecast>());
+
+    private async Task FetchWeatherForecasts()
+    {
+        var response = DataService.PullingWeatherForecasts("Type", _cancellationTokenSource.Token);
+        await foreach (var result in response)
+        {
+            _result = result;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        _cancellationTokenSource.Cancel();
+        _cancellationTokenSource.Dispose();
+    }
+}
