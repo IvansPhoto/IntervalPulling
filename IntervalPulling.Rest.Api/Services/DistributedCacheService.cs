@@ -4,23 +4,23 @@ using Microsoft.Extensions.Caching.Distributed;
 
 namespace IntervalPulling.Rest.Api.Services;
 
-public class DistributedCacheService
+internal sealed class DistributedCacheService
 {
     private const string InProgress = nameof(InProgress);
     private const string Error = nameof(Error);
     private const string InCache = nameof(InCache);
     private readonly ILogger<DistributedCacheService> _logger;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IDataService _dataService;
     private readonly IDistributedCache _distributedCache;
 
-    public DistributedCacheService(ILogger<DistributedCacheService> logger, IServiceProvider serviceProvider, IDistributedCache distributedCache)
+    public DistributedCacheService(ILogger<DistributedCacheService> logger, IDistributedCache distributedCache, IDataService dataService)
     {
         _logger = logger;
-        _serviceProvider = serviceProvider;
         _distributedCache = distributedCache;
+        _dataService = dataService;
     }
 
-    public async Task<CacheServiceResult> GetOrCreateData(string id, CancellationToken token = default)
+    public async Task<CacheServiceResult<WeatherForecast[]>> GetOrCreateData(string id, CancellationToken token)
     {
         var cachedValue = _distributedCache.GetAsync(id + InCache, token);
         var inProgressValue = _distributedCache.GetAsync(id + InProgress, token);
@@ -30,14 +30,14 @@ public class DistributedCacheService
         if (cachedValue.Result is not null)
         {
             var entry = JsonSerializer.Deserialize<WeatherForecast[]>(cachedValue.Result);
-            return CacheServiceResult.InCache(entry!);
+            return CacheServiceResult<WeatherForecast[]>.InCache(entry!);
         }
 
         if (inProgressValue.Result is not null)
-            return CacheServiceResult.InProgress();
+            return CacheServiceResult<WeatherForecast[]>.InProgress();
 
         if (errorValue.Result is not null)
-            return CacheServiceResult.WithError();
+            return CacheServiceResult<WeatherForecast[]>.WithError();
 
         _ = Task.Run(async () =>
         {
@@ -45,9 +45,7 @@ public class DistributedCacheService
             {
                 await _distributedCache.SetAsync(id + InProgress, JsonSerializer.SerializeToUtf8Bytes(id), token);
 
-                using var scope = _serviceProvider.CreateScope();
-                var dataService = scope.ServiceProvider.GetRequiredService<IDataService>();
-                var result = await dataService.LongRunningTask(id);
+                var result = await _dataService.LongRunningTask(id);
 
                 await _distributedCache.SetAsync(
                     key: id + InCache,
@@ -70,6 +68,6 @@ public class DistributedCacheService
             }
         }, token);
 
-        return CacheServiceResult.InProgress();
+        return CacheServiceResult<WeatherForecast[]>.InProgress();
     }
 }

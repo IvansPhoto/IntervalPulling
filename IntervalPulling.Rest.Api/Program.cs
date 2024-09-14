@@ -1,3 +1,4 @@
+using IntervalPulling.Rest.Api;
 using IntervalPulling.Rest.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -5,10 +6,20 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<IDataService, DataService>();
-builder.Services.AddSingleton<InMemoryCacheService>();
-builder.Services.AddSingleton<DistributedCacheService>();
 builder.Services.AddCors();
+
+builder.Services.AddScoped<IDataService, DataService>();
+
+builder.Services.AddScoped<InMemoryCacheService>();
+
+builder.Services.AddScoped<DistributedCacheService>();
+
+builder.Services.AddScoped<DistributedCacheServiceChannels>();
+builder.Services.AddHostedService<Processor>();
+builder.Services
+    .AddOptions<Configuration>()
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 var app = builder.Build();
 
