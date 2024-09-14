@@ -2,12 +2,13 @@
 
 namespace IntervalPulling.Rest.Api.Services;
 
-public interface IDataService
+internal interface IDataService
 {
     Task<WeatherForecast[]> LongRunningTask(string id);
+    public Task SendMessage(string id);
 }
 
-public sealed class DataService : IDataService
+internal sealed class DataService : IDataService
 {
     private static readonly string[] Summaries =
     {
@@ -16,7 +17,7 @@ public sealed class DataService : IDataService
 
     public async Task<WeatherForecast[]> LongRunningTask(string id)
     {
-        await Task.Delay(TimeSpan.FromSeconds(1));
+        await Task.Delay(TimeSpan.FromSeconds(50));
         return new WeatherForecast[]
         {
             new()
@@ -26,5 +27,10 @@ public sealed class DataService : IDataService
                 Summary = Summaries[Random.Shared.Next(Summaries.Length)]
             }
         };
+    }
+
+    public Task SendMessage(string id)
+    {
+       return  Task.CompletedTask;
     }
 }

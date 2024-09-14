@@ -1,18 +1,16 @@
-﻿using IntervalPulling.Entities;
+﻿namespace IntervalPulling.Rest.Api.Services;
 
-namespace IntervalPulling.Rest.Api.Services;
-
-public record CacheServiceResult
+internal record CacheServiceResult<T>
 {
-    private CacheServiceResult(States state, WeatherForecast[] weatherForecasts)
+    private CacheServiceResult(States state, T? entity)
     {
         State = state;
-        WeatherForecasts = weatherForecasts;
+        Entity = entity;
     }
 
-    public static CacheServiceResult InProgress() => new(States.InProgress, Array.Empty<WeatherForecast>());
-    public static CacheServiceResult WithError() => new(States.Error, Array.Empty<WeatherForecast>());
-    public static CacheServiceResult InCache(WeatherForecast[] forecasts) => new(States.InCache, forecasts);
+    public static CacheServiceResult<T> InProgress() => new(States.InProgress, default);
+    public static CacheServiceResult<T> WithError() => new(States.Error, default);
+    public static CacheServiceResult<T> InCache(T entity) => new(States.InCache, entity);
 
     public enum States
     {
@@ -22,5 +20,5 @@ public record CacheServiceResult
     }
 
     public States State { get; init; }
-    public WeatherForecast[] WeatherForecasts { get; init; }
+    public T? Entity { get; init; }
 }

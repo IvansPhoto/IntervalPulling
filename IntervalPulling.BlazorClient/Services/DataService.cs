@@ -5,20 +5,18 @@ using IntervalPulling.Entities;
 
 namespace IntervalPulling.BlazorClient.Services;
 
-public interface IDataService
+internal interface IDataService
 {
     Task<WeatherForecast[]?> GetWeatherForecasts(string id, CancellationToken cancellationToken);
-    IAsyncEnumerable<DataService.Result> PullingWeatherForecasts(string id, CancellationToken cancellationToken);
+    IAsyncEnumerable<DataService.Result<WeatherForecast[]>> PullingWeatherForecasts(string id, CancellationToken cancellationToken);
 }
 
-public sealed class DataService : IDataService
+internal sealed class DataService : IDataService
 {
-    private readonly ILogger<DataService> _logger;
     private readonly HttpClient _httpClient;
 
-    public DataService(ILogger<DataService> logger, HttpClient httpClient)
+    public DataService(HttpClient httpClient)
     {
-        _logger = logger;
         _httpClient = httpClient;
         _httpClient.BaseAddress = new Uri("http://localhost:5140");
     }
@@ -29,33 +27,29 @@ public sealed class DataService : IDataService
         if (response.IsSuccessStatusCode)
         {
             var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            var result = await JsonSerializer.DeserializeAsync<WeatherForecast[]>(stream, cancellationToken: cancellationToken);
-            return result;
+            return await JsonSerializer.DeserializeAsync<WeatherForecast[]>(stream, cancellationToken: cancellationToken);
         }
 
         return null;
     }
     
-    public async IAsyncEnumerable<Result> PullingWeatherForecasts(string id, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<Result<WeatherForecast[]>> PullingWeatherForecasts(string id, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
-            var response = await _httpClient.GetAsync($"WeatherForecast/long-running/{id}", cancellationToken);
+            var response = await _httpClient.GetAsync($"WeatherForecast/pulling-in-memory-cache/{id}", cancellationToken);
             switch (response.StatusCode)
             {
                 case HttpStatusCode.OK:
                     var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
                     var result = await JsonSerializer.DeserializeAsync<WeatherForecast[]>(stream, cancellationToken: cancellationToken);
-                    yield return new Result(Result.States.Finished, result!);
+                    yield return new Result<WeatherForecast[]>(Result<WeatherForecast[]>.States.Finished, result!);
                     yield break;
-                case HttpStatusCode.Accepted:
-                    yield return new Result(Result.States.Accepted, Array.Empty<WeatherForecast>());
-                    break;
                 case HttpStatusCode.NoContent:
-                    yield return new Result(Result.States.InProgress, Array.Empty<WeatherForecast>());
+                    yield return new Result<WeatherForecast[]>(Result<WeatherForecast[]>.States.InProgress, Array.Empty<WeatherForecast>());
                     break;
                 case HttpStatusCode.InternalServerError:
-                    yield return new Result(Result.States.Error, Array.Empty<WeatherForecast>());
+                    yield return new Result<WeatherForecast[]>(Result<WeatherForecast[]>.States.Error, Array.Empty<WeatherForecast>());
                     break;
                default:
                     throw new ArgumentOutOfRangeException();
@@ -65,12 +59,11 @@ public sealed class DataService : IDataService
         }
     }
 
-    public record Result(Result.States State, WeatherForecast[] WeatherForecasts)
+    public record Result<T>(Result<T>.States State, T Entity)
     {
         public enum States
         {
             None,
-            Accepted,
             InProgress,
             Finished,
             Error
